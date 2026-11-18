@@ -1,0 +1,13 @@
+node_modules
+.git
+.env
+.env.*
+.auth
+reports
+test-results
+playwright-report
+blob-report
+tests
+framework
+docs
+*.md

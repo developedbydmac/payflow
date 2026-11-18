@@ -7,7 +7,11 @@ import { ApiError, notFound } from './errors';
 import { captureWithProcessor } from './processor';
 
 const CURRENCIES = ['USD', 'EUR', 'GBP'] as const;
+const STATUSES = ['authorized', 'captured', 'partially_refunded', 'refunded', 'declined'] as const;
+const REFUNDABLE = ['captured', 'partially_refunded'];
 const MAX_AMOUNT_CENTS = 1_000_000;
+const DEFAULT_LIST_LIMIT = 20;
+const MAX_LIST_LIMIT = 100;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface PaymentRow {
@@ -210,5 +214,119 @@ export function paymentsRouter(pool: Pool): Router {
     res.status(200).json(toPayment(outcome.payment));
   });
 
+  // ── 3. Refund ───────────────────────────────────────────────────────────────
+  router.post('/payments/:id/refunds', async (req, res) => {
+    const user: AuthUser = res.locals.user;
+    const id = req.params.id;
+    if (!UUID.test(id)) throw notFound();
+    const requested = readRefundAmount(req.body);
+
+    const payment = await withTransaction(pool, async (client) => {
+      // ROW LOCK + owner check, same as capture. Two refunds of one payment run one at a time,
+      // so they can't both read the same "remaining" amount and over-refund together.
+      const { rows } = await client.query<PaymentRow>(
+        'SELECT * FROM payments WHERE id = $1 AND user_id = $2 FOR UPDATE',
+        [id, user.id],
+      );
+      const current = rows[0];
+      if (!current) throw notFound();
+      if (!REFUNDABLE.includes(current.status)) {
+        throw new ApiError(
+          409,
+          'invalid_state',
+          `Only a captured or partially refunded payment can be refunded (status is ${current.status})`,
+        );
+      }
+
+      const remaining = current.captured_cents - current.refunded_cents;
+      const amount = requested ?? remaining; // omitted means "refund the rest"
+      if (amount > remaining) {
+        throw new ApiError(
+          409,
+          'refund_exceeds_captured',
+          `Refund of ${amount} exceeds the ${remaining} cents still refundable`,
+          'amount_cents',
+        );
+      }
+
+      const refundedTotal = current.refunded_cents + amount;
+      const status = refundedTotal === current.captured_cents ? 'refunded' : 'partially_refunded';
+      const updated = await client.query<PaymentRow>(
+        `UPDATE payments SET refunded_cents = $2, status = $3, updated_at = now()
+          WHERE id = $1
+          RETURNING *`,
+        [id, refundedTotal, status],
+      );
+      // Ledger rule 3: refund entries add up to refunded_cents, in the same transaction.
+      await client.query(
+        `INSERT INTO ledger_entries (payment_id, type, amount_cents) VALUES ($1, 'refund', $2)`,
+        [id, amount],
+      );
+      return updated.rows[0]!;
+    });
+
+    res.status(201).json(toPayment(payment));
+  });
+
+  // ── 4. List ─────────────────────────────────────────────────────────────────
+  router.get('/payments', async (req, res) => {
+    const user: AuthUser = res.locals.user;
+    const { status, limit } = readListQuery(req.query);
+
+    // Owner check: only the caller's payments, ever. Newest first; id breaks ties.
+    const { rows } = await pool.query<PaymentRow>(
+      `SELECT * FROM payments
+        WHERE user_id = $1 AND ($2::text IS NULL OR status = $2)
+        ORDER BY created_at DESC, id DESC
+        LIMIT $3`,
+      [user.id, status ?? null, limit],
+    );
+    res.status(200).json({ data: rows.map(toPayment) });
+  });
+
   return router;
+}
+
+/** Refund body: `{ amount_cents? }`. Omitted means the full remaining amount. */
+function readRefundAmount(body: unknown): number | undefined {
+  if (body === undefined) return undefined; // no body at all
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    throw new ApiError(400, 'validation_error', 'Body must be a JSON object');
+  }
+  const { amount_cents } = body as Record<string, unknown>;
+  if (amount_cents === undefined) return undefined;
+  if (typeof amount_cents !== 'number' || !Number.isInteger(amount_cents) || amount_cents < 1) {
+    throw new ApiError(
+      400,
+      'validation_error',
+      'amount_cents must be a positive integer',
+      'amount_cents',
+    );
+  }
+  return amount_cents;
+}
+
+function readListQuery(query: Record<string, unknown>) {
+  const { status, limit } = query;
+  if (status !== undefined && !STATUSES.includes(status as (typeof STATUSES)[number])) {
+    throw new ApiError(
+      400,
+      'validation_error',
+      `status must be one of ${STATUSES.join(', ')}`,
+      'status',
+    );
+  }
+  let parsedLimit = DEFAULT_LIST_LIMIT;
+  if (limit !== undefined) {
+    parsedLimit = Number(limit);
+    if (!/^\d+$/.test(String(limit)) || parsedLimit < 1 || parsedLimit > MAX_LIST_LIMIT) {
+      throw new ApiError(
+        400,
+        'validation_error',
+        `limit must be an integer from 1 to ${MAX_LIST_LIMIT}`,
+        'limit',
+      );
+    }
+  }
+  return { status: status as string | undefined, limit: parsedLimit };
 }

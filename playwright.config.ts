@@ -1,7 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
+import { env } from './framework/config/env';
 
-// One place for environment values. Point the suite elsewhere with BASE_URL.
-const baseURL = process.env.BASE_URL ?? 'http://localhost:3000';
 const isCI = !!process.env.CI;
 
 export default defineConfig({
@@ -14,19 +13,26 @@ export default defineConfig({
   reporter: [['list'], ['html', { outputFolder: 'reports/html', open: 'never' }]],
   outputDir: 'reports/artifacts',
   use: {
-    baseURL,
+    baseURL: env.baseURL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
   projects: [
     {
+      // Checks each user's token and saves their auth state to .auth/ before any test runs.
+      name: 'setup',
+      testMatch: /auth\.setup\.ts/,
+    },
+    {
       // API tests use the `request` fixture only, so no browser is launched.
       name: 'api',
       testDir: './tests/api',
+      dependencies: ['setup'],
     },
     {
       name: 'ui',
       testDir: './tests/ui',
+      dependencies: ['setup'],
       use: { ...devices['Desktop Chrome'] },
     },
   ],

@@ -13,7 +13,8 @@ The earlier version of PayFlow tested public demo sites. Its hardest failures ca
 ## What exists today
 
 - **App spec** ([docs/spec.md](docs/spec.md)): four payment endpoints, two users who own their payments, required idempotency keys, a fake payment processor, an append-only ledger, and the five ledger rules the database tests will assert.
-- **Framework setup:** TypeScript (strict), Playwright with separate `api` and `ui` projects, ESLint and Prettier.
+- **Payments API:** create, capture, refund and list, with token auth, per-user ownership, idempotency keys, row locks and an append-only Postgres ledger. One command starts it in Docker Compose.
+- **Test framework:** Playwright and TypeScript, with fixtures (`userA`, `userB`, `anonymous`), a typed API client, a data factory, environment config and saved auth state. The first `@smoke` API test covers create and capture.
 - **Decision records** ([docs/adr/](docs/adr/)): why the project is built this way.
 
 ## Stack
@@ -36,13 +37,11 @@ Needs Node 22+ and Docker.
 
 ```bash
 npm install
-npm run db:up      # start Postgres 16 in Docker
-npm run db:reset   # create the tables and load the seed data (2 users, 10 payments)
+npm run stack:up   # build and start Postgres + the API in Docker, wait until healthy (seeds on first run)
 npm run check      # lint, typecheck and format check
-npm run dev        # start the API on http://localhost:3000 (restarts on file changes)
 ```
 
-Try it with one of the seeded local test tokens:
+The API is then on http://localhost:3000. Try it with one of the seeded local test tokens:
 
 ```bash
 curl -X POST localhost:3000/api/payments \
@@ -50,4 +49,11 @@ curl -X POST localhost:3000/api/payments \
   -H "Content-Type: application/json" -d '{"amount_cents":1500,"currency":"USD"}'
 ```
 
-App and test commands will be added here as each piece lands.
+**Working on the app itself?** Run only the database with `npm run db:up`, then `npm run dev` (restarts on file changes). `npm run db:reset` gives you a fresh database. `npm run stack:down` stops everything.
+
+**Run the tests** (with the stack running):
+
+```bash
+npm test           # a setup step checks both users' tokens, then the API tests run
+npm run report     # open the HTML report
+```
