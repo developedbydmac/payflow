@@ -8,7 +8,8 @@ export default defineConfig({
   testDir: './tests',
   fullyParallel: true,
   forbidOnly: isCI,
-  retries: isCI ? 2 : 0,
+  // One retry in CI. A test that passes on retry is a flake and gets reported, not ignored.
+  retries: isCI ? 1 : 0,
   workers: isCI ? 2 : undefined,
   reporter: [['list'], ['html', { outputFolder: 'reports/html', open: 'never' }]],
   outputDir: 'reports/artifacts',
