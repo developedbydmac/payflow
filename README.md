@@ -32,9 +32,13 @@ TypeScript · Playwright · Vitest · Node/Express · PostgreSQL · Docker Compo
 
 ## Run it
 
+Needs Node 22+ and Docker.
+
 ```bash
 npm install
-npm run check   # lint, typecheck and format check
+npm run db:up      # start Postgres 16 in Docker
+npm run db:reset   # create the tables and load the seed data (2 users, 10 payments)
+npm run check      # lint, typecheck and format check
 ```
 
 App and test commands will be added here as each piece lands.
