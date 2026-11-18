@@ -1,4 +1,4 @@
-# Local stack. Only the database for now; the app service is added on Sat Nov 21.
+# Local stack: `docker compose up -d --wait` starts Postgres and the API, then waits until both are healthy.
 services:
   db:
     image: postgres:16-alpine
@@ -15,6 +15,25 @@ services:
       interval: 2s
       timeout: 3s
       retries: 15
+
+  app:
+    build: .
+    environment:
+      DATABASE_URL: postgres://payflow:payflow@db:5432/payflow
+      USER_A_TOKEN: ${USER_A_TOKEN:-dev-token-user-a}
+      USER_B_TOKEN: ${USER_B_TOKEN:-dev-token-user-b}
+      PORT: '3000'
+    ports:
+      - '3000:3000'
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:3000/health || exit 1']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
 
 volumes:
   db-data:

@@ -12,7 +12,7 @@ The earlier PayFlow (`payflow-qa`) tested public demo sites, with Cypress as its
 - Build a small payments app inside this repo, so the tests own the system under test from end to end.
 - Use TypeScript everywhere: Playwright for API and UI tests, and Vitest for ledger unit tests. Cypress is not part of v1.
 - Run Postgres in Docker Compose. Run CI on GitHub Actions.
-- Build in a new repo while the earlier one stays on resumes. At v1.0.0 (Dec 20, 2026), rename the earlier repo to `payflow-legacy` and this repo to `payflow`.
+- Build in the public `payflow` repo, which is the link on resumes from day one. The README marks it as in development and lists only what exists, until v1.0.0 (Dec 20, 2026). The earlier repo, `payflow-qa`, stays private.
 
 ## Consequences
 
