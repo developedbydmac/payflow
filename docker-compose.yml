@@ -1,0 +1,20 @@
+# Local stack. Only the database for now; the app service is added on Sat Nov 21.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: payflow
+      POSTGRES_PASSWORD: payflow
+      POSTGRES_DB: payflow
+    ports:
+      - '5432:5432'
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U payflow -d payflow']
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+volumes:
+  db-data:
