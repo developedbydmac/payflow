@@ -39,6 +39,15 @@ npm install
 npm run db:up      # start Postgres 16 in Docker
 npm run db:reset   # create the tables and load the seed data (2 users, 10 payments)
 npm run check      # lint, typecheck and format check
+npm run dev        # start the API on http://localhost:3000 (restarts on file changes)
+```
+
+Try it with one of the seeded local test tokens:
+
+```bash
+curl -X POST localhost:3000/api/payments \
+  -H "Authorization: Bearer dev-token-user-a" -H "Idempotency-Key: try-1" \
+  -H "Content-Type: application/json" -d '{"amount_cents":1500,"currency":"USD"}'
 ```
 
 App and test commands will be added here as each piece lands.

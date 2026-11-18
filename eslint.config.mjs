@@ -7,4 +7,11 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   prettier,
+  {
+    rules: {
+      // Allow intentionally unused parameters named with a leading underscore,
+      // e.g. Express error handlers, which must take four arguments.
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+    },
+  },
 );

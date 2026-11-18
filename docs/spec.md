@@ -9,6 +9,7 @@ PayFlow is a tiny payments app that exists only to be tested. It has no real mon
 - A fake payment processor inside the app (`app/api/processor.ts`), with no network calls
 - Server-rendered HTML for the two pages, with no frontend framework
 - Every interactive element has a `data-testid`
+- `GET /health` (no auth) returns `{ "status": "ok" }` when the database answers. It's for the Docker Compose healthcheck, not a feature.
 
 ## Users and auth
 
